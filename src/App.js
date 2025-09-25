@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, BarChart3, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Calendar, FileSpreadsheet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { guardarDatos, obtenerDatos } from './firebase';
 
 const StockManagementSystem = () => {
   const [data, setData] = useState({
@@ -23,28 +24,22 @@ const StockManagementSystem = () => {
   });
 
   // Cargar datos del localStorage al iniciar
-  useEffect(() => {
-    const savedData = localStorage.getItem('neumaticos-olmos-data');
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        setData(parsedData);
-      } catch (error) {
-        console.error('Error cargando datos guardados:', error);
-      }
+ useEffect(() => {
+  const cargarDatos = async () => {
+    const datosGuardados = await obtenerDatos();
+    if (datosGuardados) {
+      setData(datosGuardados);
     }
-  }, []);
+  };
+  cargarDatos();
+}, []);
 
   // Guardar datos en localStorage cada vez que cambien
   useEffect(() => {
-    if (data.stock.length > 0 || data.movements.length > 0) {
-      try {
-        localStorage.setItem('neumaticos-olmos-data', JSON.stringify(data));
-      } catch (error) {
-        console.error('Error guardando datos:', error);
-      }
-    }
-  }, [data]);
+  if (data.stock.length > 0 || data.movements.length > 0) {
+    guardarDatos(data);
+  }
+}, [data]);
   // Función para procesar archivos Excel
   const processExcelFile = (file, type) => {
     return new Promise((resolve, reject) => {
@@ -386,7 +381,6 @@ const StockManagementSystem = () => {
       const doubleConfirm = window.confirm('¿REALMENTE quieres borrar todo? Esta es tu última oportunidad.');
       if (doubleConfirm) {
         setData({ stock: [], movements: [], dailyStats: [] });
-        localStorage.removeItem('neumaticos-olmos-data');
         alert('🗑️ Todos los datos han sido eliminados');
       }
     }
