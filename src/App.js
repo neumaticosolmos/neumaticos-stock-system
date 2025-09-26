@@ -5,9 +5,10 @@ import { guardarDatos, obtenerDatos } from './firebase';
 
 const StockManagementSystem = () => {
   const [data, setData] = useState({
-    stock: [],
-    movements: [],
-    dailyStats: []
+    stockActual: [], // Stock del día actual (se reemplaza)
+    ventasDiarias: [], // Ventas día a día (se acumula)
+    ventasHistoricas: [], // Ventas mensuales históricas (carga una vez)
+    ultimaFechaStock: null // Última fecha de actualización del stock
   });
   
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -23,23 +24,35 @@ const StockManagementSystem = () => {
     search: ''
   });
 
-  // Cargar datos del localStorage al iniciar
- useEffect(() => {
-  const cargarDatos = async () => {
-    const datosGuardados = await obtenerDatos();
-    if (datosGuardados) {
-      setData(datosGuardados);
-    }
-  };
-  cargarDatos();
-}, []);
-
-  // Guardar datos en localStorage cada vez que cambien
+  // Cargar datos de Firebase al iniciar
   useEffect(() => {
-  if (data.stock.length > 0 || data.movements.length > 0) {
-    guardarDatos(data);
-  }
-}, [data]);
+    const cargarDatos = async () => {
+      const datosGuardados = await obtenerDatos();
+      if (datosGuardados) {
+        // Migrar datos antiguos si es necesario
+        if (datosGuardados.stock && datosGuardados.movements) {
+          const nuevoFormato = {
+            stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
+            ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
+            ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
+            ultimaFechaStock: selectedDate
+          };
+          setData(nuevoFormato);
+        } else {
+          setData(datosGuardados);
+        }
+      }
+    };
+    cargarDatos();
+  }, []);
+
+  // Guardar datos en Firebase cada vez que cambien
+  useEffect(() => {
+    if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
+      guardarDatos(data);
+    }
+  }, [data]);
+
   // Función para procesar archivos Excel
   const processExcelFile = (file, type) => {
     return new Promise((resolve, reject) => {
@@ -68,35 +81,48 @@ const StockManagementSystem = () => {
     });
   };
 
-  // Función para cargar archivo
-  const handleFileUpload = async (event, type) => {
+  // Función para cargar archivo de VENTAS DIARIAS
+  const handleVentasUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     try {
-      const processedData = await processExcelFile(file, type);
+      const processedData = await processExcelFile(file, 'ventas');
       
-      setData(prevData => {
-        const newData = { ...prevData };
-        
-        if (type === 'stock') {
-          newData.stock = newData.stock.filter(item => item.fecha !== selectedDate);
-          newData.stock = [...newData.stock, ...processedData];
-        } else {
-          newData.movements = [...newData.movements, ...processedData];
-        }
-        
-        return newData;
-      });
+      setData(prevData => ({
+        ...prevData,
+        ventasDiarias: [...prevData.ventasDiarias, ...processedData]
+      }));
 
       event.target.value = '';
-      alert(`✅ Archivo ${type} cargado correctamente: ${processedData.length} registros`);
+      alert(`✅ Ventas del día cargadas: ${processedData.length} registros para ${selectedDate}`);
     } catch (error) {
-      alert('❌ Error al procesar el archivo. Verifica el formato.');
+      alert('❌ Error al procesar el archivo de ventas. Verifica el formato.');
     }
   };
 
-  // Función para cargar datos históricos
+  // Función para cargar archivo de STOCK ACTUAL (reemplaza el anterior)
+  const handleStockUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const processedData = await processExcelFile(file, 'stock');
+      
+      setData(prevData => ({
+        ...prevData,
+        stockActual: processedData, // REEMPLAZA completamente el stock anterior
+        ultimaFechaStock: selectedDate
+      }));
+
+      event.target.value = '';
+      alert(`✅ Stock actualizado completamente: ${processedData.length} productos para ${selectedDate}`);
+    } catch (error) {
+      alert('❌ Error al procesar el archivo de stock. Verifica el formato.');
+    }
+  };
+
+  // Función para cargar datos históricos (una sola vez)
   const handleHistoricalUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -107,6 +133,16 @@ const StockManagementSystem = () => {
     if (!mesDesde || !mesHasta) {
       alert('⚠️ Por favor, selecciona el rango de fechas para los datos históricos');
       return;
+    }
+
+    // Verificar si ya hay datos históricos
+    if (data.ventasHistoricas.length > 0) {
+      const confirmar = window.confirm(
+        '⚠️ Ya tienes datos históricos cargados.\n\n' +
+        '¿Quieres reemplazarlos con estos nuevos datos?\n' +
+        'Los datos históricos solo deberían cargarse UNA VEZ.'
+      );
+      if (!confirmar) return;
     }
 
     try {
@@ -137,7 +173,7 @@ const StockManagementSystem = () => {
             descripcion: item.descripcion,
             cantidad: cantidadPromedioDiario,
             fecha: fecha,
-            tipo: 'ventas'
+            tipo: 'ventas-historicas'
           });
         });
         
@@ -146,30 +182,35 @@ const StockManagementSystem = () => {
 
       setData(prevData => ({
         ...prevData,
-        movements: [...prevData.movements, ...historicalData]
+        ventasHistoricas: historicalData // REEMPLAZA los datos históricos
       }));
 
       event.target.value = '';
       document.getElementById('mes-desde').value = '';
       document.getElementById('mes-hasta').value = '';
       
-      alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})`);
+      alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.`);
     } catch (error) {
       alert('❌ Error al procesar el archivo histórico. Verifica el formato.');
     }
   };
+
   // Calcular estadísticas y alertas
   useEffect(() => {
     calculateStats();
   }, [data]);
 
   const calculateStats = () => {
-    const stockActual = data.stock.filter(item => item.fecha === selectedDate);
-    const ventasUltimos90Dias = data.movements.filter(item => {
+    const stockActual = data.stockActual;
+    
+    // Combinar ventas diarias + históricas para el análisis
+    const todasLasVentas = [...data.ventasDiarias, ...data.ventasHistoricas];
+    
+    const ventasUltimos90Dias = todasLasVentas.filter(item => {
       const fechaItem = new Date(item.fecha);
       const hace90Dias = new Date();
       hace90Dias.setDate(hace90Dias.getDate() - 90);
-      return (item.tipo === 'ventas' || item.tipo === 'ventas-historicas') && fechaItem >= hace90Dias;
+      return fechaItem >= hace90Dias;
     });
 
     const promediosVenta = {};
@@ -310,12 +351,13 @@ const StockManagementSystem = () => {
       search: ''
     });
   };
+
   // Función para exportar todos los datos
   const exportarTodosLosDatos = () => {
     const dataToExport = {
       ...data,
       fechaExportacion: new Date().toISOString(),
-      version: '1.0'
+      version: '2.0'
     };
     
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
@@ -341,25 +383,28 @@ const StockManagementSystem = () => {
       try {
         const backupData = JSON.parse(e.target.result);
         
-        if (backupData.stock && backupData.movements) {
+        if (backupData.stockActual !== undefined) {
+          // Formato nuevo
           const confirmImport = window.confirm(
             `¿Estás seguro de importar este backup?\n\n` +
             `Fecha del backup: ${new Date(backupData.fechaExportacion).toLocaleString('es-AR')}\n` +
-            `Stock: ${backupData.stock.length} registros\n` +
-            `Movimientos: ${backupData.movements.length} registros\n\n` +
+            `Stock Actual: ${backupData.stockActual.length} productos\n` +
+            `Ventas Diarias: ${backupData.ventasDiarias.length} registros\n` +
+            `Ventas Históricas: ${backupData.ventasHistoricas.length} registros\n\n` +
             `Esto reemplazará todos los datos actuales.`
           );
           
           if (confirmImport) {
             setData({
-              stock: backupData.stock || [],
-              movements: backupData.movements || [],
-              dailyStats: backupData.dailyStats || []
+              stockActual: backupData.stockActual || [],
+              ventasDiarias: backupData.ventasDiarias || [],
+              ventasHistoricas: backupData.ventasHistoricas || [],
+              ultimaFechaStock: backupData.ultimaFechaStock || null
             });
             alert('✅ Datos importados correctamente');
           }
         } else {
-          alert('❌ Archivo de backup inválido');
+          alert('❌ Archivo de backup inválido o formato antiguo');
         }
       } catch (error) {
         alert('❌ Error al leer el archivo de backup');
@@ -380,7 +425,12 @@ const StockManagementSystem = () => {
     if (confirmClear) {
       const doubleConfirm = window.confirm('¿REALMENTE quieres borrar todo? Esta es tu última oportunidad.');
       if (doubleConfirm) {
-        setData({ stock: [], movements: [], dailyStats: [] });
+        setData({ 
+          stockActual: [], 
+          ventasDiarias: [], 
+          ventasHistoricas: [],
+          ultimaFechaStock: null 
+        });
         alert('🗑️ Todos los datos han sido eliminados');
       }
     }
@@ -405,23 +455,22 @@ const StockManagementSystem = () => {
   // Calcular estadísticas del dashboard
   const getDashboardStats = () => {
     const hoy = new Date().toISOString().split('T')[0];
-    const ventasHoy = data.movements.filter(item => item.fecha === hoy && item.tipo === 'ventas');
+    const ventasHoy = data.ventasDiarias.filter(item => item.fecha === hoy);
     
     const totalVentasHoy = ventasHoy.reduce((sum, item) => sum + item.cantidad, 0);
-    const totalStock = data.stock.reduce((sum, item) => sum + item.cantidad, 0);
+    const totalStock = data.stockActual.reduce((sum, item) => sum + item.cantidad, 0);
     
     const alertasCriticas = alerts.filter(alert => alert.nivel === 'CRÍTICO' || alert.nivel === 'SIN STOCK').length;
     const alertasBajas = alerts.filter(alert => alert.nivel === 'BAJO').length;
     const sinStock = alerts.filter(alert => alert.nivel === 'SIN STOCK').length;
     
-    const totalVentasHistoricas = data.movements.filter(item => 
-      item.tipo === 'ventas' || item.tipo === 'ventas-historicas'
-    ).length;
+    const totalVentasHistoricas = data.ventasDiarias.length + data.ventasHistoricas.length;
     
     return { totalVentasHoy, totalStock, alertasCriticas, alertasBajas, totalVentasHistoricas, sinStock };
   };
 
   const stats = getDashboardStats();
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
@@ -519,7 +568,8 @@ const StockManagementSystem = () => {
           </nav>
         </div>
       </div>
-{/* Upload Tab */}
+
+      {/* Upload Tab */}
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="mb-6">
@@ -535,6 +585,31 @@ const StockManagementSystem = () => {
             />
           </div>
 
+          {/* Información del estado actual */}
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-900 mb-2">📊 Estado Actual de los Datos</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-blue-700">Stock Actual:</p>
+                <p className="font-bold text-blue-900">{data.stockActual.length} productos</p>
+                {data.ultimaFechaStock && (
+                  <p className="text-xs text-blue-600">Actualizado: {data.ultimaFechaStock}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-blue-700">Ventas Diarias:</p>
+                <p className="font-bold text-blue-900">{data.ventasDiarias.length} registros</p>
+              </div>
+              <div>
+                <p className="text-blue-700">Datos Históricos:</p>
+                <p className="font-bold text-blue-900">{data.ventasHistoricas.length} registros</p>
+                <p className="text-xs text-blue-600">
+                  {data.ventasHistoricas.length > 0 ? 'Ya cargados ✓' : 'Pendiente de cargar'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Carga Diaria */}
           <div className="mb-8">
             <h3 className="text-lg font-medium text-gray-900 mb-4">📅 Carga Diaria</h3>
@@ -542,11 +617,13 @@ const StockManagementSystem = () => {
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-red-400 transition-colors">
                 <TrendingDown className="w-12 h-12 text-red-500 mx-auto mb-4" />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">Ventas del Día</h4>
-                <p className="text-sm text-gray-500 mb-4">Archivo de ventas diarias</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  Se ACUMULA día a día para el histórico
+                </p>
                 <input
                   type="file"
                   accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'ventas')}
+                  onChange={handleVentasUpload}
                   className="hidden"
                   id="ventas-upload"
                 />
@@ -555,18 +632,20 @@ const StockManagementSystem = () => {
                   className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 cursor-pointer inline-block"
                 >
                   <FileSpreadsheet className="w-4 h-4 inline mr-2" />
-                  Subir Excel
+                  Subir Ventas
                 </label>
               </div>
 
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                 <BarChart3 className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-                <h4 className="text-lg font-medium text-gray-900 mb-2">Stock del Día</h4>
-                <p className="text-sm text-gray-500 mb-4">Archivo de inventario actual</p>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Stock Actual</h4>
+                <p className="text-sm text-gray-500 mb-4">
+                  REEMPLAZA el stock anterior completamente
+                </p>
                 <input
                   type="file"
                   accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'stock')}
+                  onChange={handleStockUpload}
                   className="hidden"
                   id="stock-upload"
                 />
@@ -575,7 +654,7 @@ const StockManagementSystem = () => {
                   className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 cursor-pointer inline-block"
                 >
                   <FileSpreadsheet className="w-4 h-4 inline mr-2" />
-                  Subir Excel
+                  Actualizar Stock
                 </label>
               </div>
             </div>
@@ -583,7 +662,14 @@ const StockManagementSystem = () => {
 
           {/* Carga Histórica */}
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">📊 Carga de Datos Históricos</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              📊 Carga de Datos Históricos 
+              {data.ventasHistoricas.length > 0 && (
+                <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                  ✓ Ya cargados
+                </span>
+              )}
+            </h3>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
@@ -591,11 +677,11 @@ const StockManagementSystem = () => {
                 </div>
                 <div className="ml-3 flex-1">
                   <h4 className="text-base font-medium text-yellow-800 mb-2">
-                    Ventas Mensuales Anteriores
+                    Ventas Mensuales Anteriores (CARGA UNA SOLA VEZ)
                   </h4>
                   <p className="text-sm text-yellow-700 mb-4">
-                    Para análisis precisos, carga las ventas de los últimos 3 meses. 
-                    Usa el mismo formato: CODIGO | DESCRIPCIÓN | CANTIDAD
+                    Estos datos se cargan UNA SOLA VEZ para establecer la base histórica de ventas. 
+                    NO se deben recargar mensualmente. Usa el formato: CODIGO | DESCRIPCIÓN | CANTIDAD TOTAL DEL PERÍODO
                   </p>
                   
                   <div className="flex flex-wrap gap-4 items-center">
@@ -619,7 +705,7 @@ const StockManagementSystem = () => {
                       <input
                         type="file"
                         accept=".xlsx,.xls"
-                        onChange={(e) => handleHistoricalUpload(e)}
+                        onChange={handleHistoricalUpload}
                         className="hidden"
                         id="historical-upload"
                       />
@@ -628,7 +714,7 @@ const StockManagementSystem = () => {
                         className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 cursor-pointer inline-flex items-center text-sm"
                       >
                         <FileSpreadsheet className="w-4 h-4 mr-2" />
-                        Cargar Ventas Históricas
+                        Cargar Históricos
                       </label>
                     </div>
                   </div>
@@ -640,20 +726,20 @@ const StockManagementSystem = () => {
           <div className="mt-8 p-4 bg-gray-50 rounded-lg">
             <div className="flex justify-between items-start mb-2">
               <h4 className="font-medium text-gray-900">Formato de archivos esperado:</h4>
-              <div className="text-sm text-gray-500">
-                📊 Datos guardados: {data.stock.length} stock + {data.movements.length} movimientos
-              </div>
             </div>
-            <div className="text-sm text-gray-600 space-y-1">
-              <div>• <strong>Ventas diarias:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD</div>
-              <div>• <strong>Stock:</strong> CODIGO | DESCRIPCIÓN | STOCK</div>
-              <div>• <strong>Ventas históricas:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD (rango de meses)</div>
-              <div>• Archivos Excel (.xlsx o .xls)</div>
+            <div className="text-sm text-gray-600 space-y-2">
+              <div><strong>📈 Ventas diarias:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD (se acumula cada día)</div>
+              <div><strong>📦 Stock actual:</strong> CODIGO | DESCRIPCIÓN | STOCK (reemplaza el anterior)</div>
+              <div><strong>📊 Ventas históricas:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD TOTAL (carga una vez)</div>
+              <div className="text-xs text-gray-500 mt-2">
+                • Archivos Excel (.xlsx o .xls) | Primera fila = encabezados | Filas vacías se ignoran
+              </div>
             </div>
           </div>
         </div>
       )}
-{/* Dashboard Tab */}
+
+      {/* Dashboard Tab */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -703,7 +789,10 @@ const StockManagementSystem = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="font-medium text-gray-700">SKUs en Stock:</p>
-                <p className="text-2xl font-bold text-blue-600">{data.stock.length}</p>
+                <p className="text-2xl font-bold text-blue-600">{data.stockActual.length}</p>
+                {data.ultimaFechaStock && (
+                  <p className="text-xs text-gray-500">Última actualización: {data.ultimaFechaStock}</p>
+                )}
               </div>
               <div>
                 <p className="font-medium text-gray-700">Registros de Ventas:</p>
@@ -717,23 +806,24 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-{/* Analysis Tab */}
+
+      {/* Analysis Tab */}
       {activeTab === 'analysis' && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-6">📈 Análisis y Tendencias</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-6">Análisis y Tendencias</h3>
             
             {/* Análisis rápido */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">🔥 Más Vendidos (30 días)</h4>
+                <h4 className="font-medium text-blue-900 mb-2">Más Vendidos (30 días)</h4>
                 <div className="space-y-2">
-                  {data.movements
+                  {[...data.ventasDiarias, ...data.ventasHistoricas]
                     .filter(item => {
                       const fechaItem = new Date(item.fecha);
                       const hace30Dias = new Date();
                       hace30Dias.setDate(hace30Dias.getDate() - 30);
-                      return (item.tipo === 'ventas' || item.tipo === 'ventas-historicas') && fechaItem >= hace30Dias;
+                      return fechaItem >= hace30Dias;
                     })
                     .reduce((acc, item) => {
                       if (!acc[item.codigo]) {
@@ -742,12 +832,12 @@ const StockManagementSystem = () => {
                       acc[item.codigo].total += item.cantidad;
                       return acc;
                     }, {})
-                    && Object.values(data.movements
+                    && Object.values([...data.ventasDiarias, ...data.ventasHistoricas]
                     .filter(item => {
                       const fechaItem = new Date(item.fecha);
                       const hace30Dias = new Date();
                       hace30Dias.setDate(hace30Dias.getDate() - 30);
-                      return (item.tipo === 'ventas' || item.tipo === 'ventas-historicas') && fechaItem >= hace30Dias;
+                      return fechaItem >= hace30Dias;
                     })
                     .reduce((acc, item) => {
                       if (!acc[item.codigo]) {
@@ -775,11 +865,11 @@ const StockManagementSystem = () => {
               </div>
 
               <div className="bg-red-50 p-4 rounded-lg">
-                <h4 className="font-medium text-red-900 mb-2">⚠️ Sin Movimiento (30 días)</h4>
+                <h4 className="font-medium text-red-900 mb-2">Sin Movimiento (30 días)</h4>
                 <div className="space-y-2">
-                  {data.stock
+                  {data.stockActual
                     .filter(stockItem => {
-                      const tieneMovimiento = data.movements.some(movement => {
+                      const tieneMovimiento = [...data.ventasDiarias, ...data.ventasHistoricas].some(movement => {
                         const fechaItem = new Date(movement.fecha);
                         const hace30Dias = new Date();
                         hace30Dias.setDate(hace30Dias.getDate() - 30);
@@ -805,22 +895,22 @@ const StockManagementSystem = () => {
               </div>
 
               <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-2">📊 Resumen Stock</h4>
+                <h4 className="font-medium text-green-900 mb-2">Resumen Stock</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-red-700">🔴 Crítico</span>
+                    <span className="text-red-700">Crítico</span>
                     <span className="font-medium">{alerts.filter(a => a.nivel === 'CRÍTICO').length}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-yellow-700">🟡 Bajo</span>
+                    <span className="text-yellow-700">Bajo</span>
                     <span className="font-medium">{alerts.filter(a => a.nivel === 'BAJO').length}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-green-700">🟢 Óptimo</span>
+                    <span className="text-green-700">Óptimo</span>
                     <span className="font-medium">{alerts.filter(a => a.nivel === 'ÓPTIMO').length}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-blue-700">🔵 Sobreestock</span>
+                    <span className="text-blue-700">Sobreestock</span>
                     <span className="font-medium">{alerts.filter(a => a.nivel === 'SOBREESTOCK').length}</span>
                   </div>
                 </div>
@@ -829,7 +919,7 @@ const StockManagementSystem = () => {
 
             {/* Métricas de rendimiento */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-4">🎯 Métricas de Rendimiento</h4>
+              <h4 className="font-medium text-gray-900 mb-4">Métricas de Rendimiento</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-blue-600">
@@ -839,15 +929,14 @@ const StockManagementSystem = () => {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-green-600">
-                    {Math.round(data.movements
-                      .filter(item => item.tipo === 'ventas' || item.tipo === 'ventas-historicas')
-                      .reduce((sum, item) => sum + item.cantidad, 0) / Math.max(new Set(data.movements.map(m => m.fecha)).size, 1))}
+                    {Math.round([...data.ventasDiarias, ...data.ventasHistoricas]
+                      .reduce((sum, item) => sum + item.cantidad, 0) / Math.max(new Set([...data.ventasDiarias, ...data.ventasHistoricas].map(m => m.fecha)).size, 1))}
                   </p>
                   <p className="text-gray-600">Promedio Ventas/Día</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-purple-600">
-                    {new Set(data.movements
+                    {new Set([...data.ventasDiarias, ...data.ventasHistoricas]
                       .filter(item => {
                         const fechaItem = new Date(item.fecha);
                         const hace30Dias = new Date();
@@ -869,7 +958,8 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-{/* Alerts Tab */}
+
+      {/* Alerts Tab */}
       {activeTab === 'alerts' && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -896,12 +986,12 @@ const StockManagementSystem = () => {
                       className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                     >
                       <option value="all">Todos</option>
-                      <option value="SIN STOCK">🚨 Sin Stock</option>
-                      <option value="CRÍTICO">🔴 Crítico</option>
-                      <option value="BAJO">🟡 Bajo</option>
-                      <option value="ÓPTIMO">🟢 Óptimo</option>
-                      <option value="SOBREESTOCK">🔵 Sobreestock</option>
-                      <option value="SIN MOVIMIENTO">⚫ Sin Movimiento</option>
+                      <option value="SIN STOCK">Sin Stock</option>
+                      <option value="CRÍTICO">Crítico</option>
+                      <option value="BAJO">Bajo</option>
+                      <option value="ÓPTIMO">Óptimo</option>
+                      <option value="SOBREESTOCK">Sobreestock</option>
+                      <option value="SIN MOVIMIENTO">Sin Movimiento</option>
                     </select>
                   </div>
 
