@@ -257,9 +257,11 @@ const StockManagementSystem = () => {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
+  if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
     calculateStats();
-  }, [data]);
+  }
+}, [data]);
 
   const calculateStats = () => {
     const stockActual = data.stockActual;
