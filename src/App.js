@@ -397,9 +397,8 @@ useEffect(() => {
     setFilteredAlerts(filtered);
   };
 
- useEffect(() => {
+useEffect(() => {
   applyFilters();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [filters]);
 
   const resetFilters = () => {
