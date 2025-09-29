@@ -29,239 +29,7 @@ const StockManagementSystem = () => {
     ventaMax: '',
     search: ''
   });
-
-  // Observar estado de autenticación
-  useEffect(() => {
-    const unsubscribe = observarEstadoAuth((user) => {
-      setUsuario(user);
-      setCargando(false);
-      
-      if (user) {
-        console.log('Usuario autenticado:', user.email);
-        cargarDatosIniciales();
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Cargar datos de Firebase
-  const cargarDatosIniciales = async () => {
-    const datosGuardados = await obtenerDatos();
-    if (datosGuardados) {
-      if (datosGuardados.stock && datosGuardados.movements) {
-        const nuevoFormato = {
-          stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
-          ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
-          ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
-          ultimaFechaStock: selectedDate
-        };
-        setData(nuevoFormato);
-      } else {
-        setData(datosGuardados);
-      }
-    }
-  };
-
-  // Calcular estadísticas cuando cambien los datos
-  useEffect(() => {
-    if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
-      calculateStats();
-    }
-  }, [data]);
-
-  // Aplicar filtros cuando cambien
-  useEffect(() => {
-    applyFilters();
-  }, [filters, alerts]);
-
-  // Funciones de autenticación
-  const handleLogin = async (email, password) => {
-    return await iniciarSesion(email, password);
-  };
-
-  const handleLogout = async () => {
-    const confirmar = window.confirm('¿Estás seguro de cerrar sesión?');
-    if (confirmar) {
-      await cerrarSesion();
-      setData({
-        stockActual: [],
-        ventasDiarias: [],
-        ventasHistoricas: [],
-        ultimaFechaStock: null
-      });
-    }
-  };
-
-  const handleCrearUsuario = async () => {
-    const email = prompt('Email del nuevo usuario:');
-    if (!email) return;
-    
-    const password = prompt('Contraseña (mínimo 6 caracteres):');
-    if (!password) return;
-
-    const resultado = await crearUsuario(email, password);
-    if (resultado.success) {
-      alert('✅ Usuario creado exitosamente');
-    } else {
-      alert('❌ ' + resultado.error);
-    }
-  };
-
-  // Si está cargando
-  if (cargando) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Si no hay usuario, mostrar login
-  if (!usuario) {
-    return <Login onLogin={handleLogin} />;
-  }
-
-  // Funciones originales
-  const processExcelFile = (file, type) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const workbook = XLSX.read(e.target.result, { type: 'binary' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          
-          const processedData = jsonData.slice(1).map(row => ({
-            codigo: row[0]?.toString() || '',
-            descripcion: row[1] || '',
-            cantidad: parseInt(row[2]) || 0,
-            fecha: selectedDate,
-            tipo: type
-          })).filter(item => item.codigo && item.cantidad > 0);
-          
-          resolve(processedData);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.readAsBinaryString(file);
-    });
-  };
-
-  const handleVentasUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-      const processedData = await processExcelFile(file, 'ventas');
-      
-      setData(prevData => ({
-        ...prevData,
-        ventasDiarias: [...prevData.ventasDiarias, ...processedData]
-      }));
-
-      event.target.value = '';
-      alert(`✅ Ventas del día cargadas: ${processedData.length} registros para ${selectedDate}`);
-    } catch (error) {
-      alert('❌ Error al procesar el archivo de ventas. Verifica el formato.');
-    }
-  };
-
-  const handleStockUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-      const processedData = await processExcelFile(file, 'stock');
-      
-      setData(prevData => ({
-        ...prevData,
-        stockActual: processedData,
-        ultimaFechaStock: selectedDate
-      }));
-
-      event.target.value = '';
-      alert(`✅ Stock actualizado completamente: ${processedData.length} productos para ${selectedDate}`);
-    } catch (error) {
-      alert('❌ Error al procesar el archivo de stock. Verifica el formato.');
-    }
-  };
-
-  const handleHistoricalUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const mesDesde = document.getElementById('mes-desde').value;
-    const mesHasta = document.getElementById('mes-hasta').value;
-
-    if (!mesDesde || !mesHasta) {
-      alert('⚠️ Por favor, selecciona el rango de fechas para los datos históricos');
-      return;
-    }
-
-    if (data.ventasHistoricas.length > 0) {
-      const confirmar = window.confirm(
-        '⚠️ Ya tienes datos históricos cargados.\n\n' +
-        '¿Quieres reemplazarlos con estos nuevos datos?\n' +
-        'Los datos históricos solo deberían cargarse UNA VEZ.'
-      );
-      if (!confirmar) return;
-    }
-
-    try {
-      const processedData = await processExcelFile(file, 'ventas-historicas');
-      
-      const startDate = new Date(mesDesde + '-01');
-      const endDate = new Date(mesHasta + '-01');
-      endDate.setMonth(endDate.getMonth() + 1, 0);
-      
-      const diffTime = Math.abs(endDate - startDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-      const historicalData = processedData.map(item => {
-        const cantidadPromedioDiario = item.cantidad / diffDays;
-        const registrosPorSKU = [];
-        const fechasDistribuidas = [];
-        
-        for (let i = 0; i < Math.min(diffDays, 30); i++) {
-          const fecha = new Date(startDate);
-          fecha.setDate(fecha.getDate() + Math.floor((i * diffDays) / 30));
-          fechasDistribuidas.push(fecha.toISOString().split('T')[0]);
-        }
-        
-        fechasDistribuidas.forEach(fecha => {
-          registrosPorSKU.push({
-            codigo: item.codigo,
-            descripcion: item.descripcion,
-            cantidad: cantidadPromedioDiario,
-            fecha: fecha,
-            tipo: 'ventas-historicas'
-          });
-        });
-        
-        return registrosPorSKU;
-      }).flat();
-
-      setData(prevData => ({
-        ...prevData,
-        ventasHistoricas: historicalData
-      }));
-
-      event.target.value = '';
-      document.getElementById('mes-desde').value = '';
-      document.getElementById('mes-hasta').value = '';
-      
-      alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.`);
-    } catch (error) {
-      alert('❌ Error al procesar el archivo histórico. Verifica el formato.');
-    }
-  };
-
+  // FUNCIONES DE CÁLCULO Y FILTROS
   const calculateStats = () => {
     const stockActual = data.stockActual;
     const todasLasVentas = [...data.ventasDiarias, ...data.ventasHistoricas];
@@ -406,7 +174,237 @@ const StockManagementSystem = () => {
       search: ''
     });
   };
+  // Cargar datos de Firebase
+  const cargarDatosIniciales = async () => {
+    const datosGuardados = await obtenerDatos();
+    if (datosGuardados) {
+      if (datosGuardados.stock && datosGuardados.movements) {
+        const nuevoFormato = {
+          stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
+          ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
+          ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
+          ultimaFechaStock: selectedDate
+        };
+        setData(nuevoFormato);
+      } else {
+        setData(datosGuardados);
+      }
+    }
+  };
 
+  // HOOKS useEffect
+  // Observar estado de autenticación
+  useEffect(() => {
+    const unsubscribe = observarEstadoAuth((user) => {
+      setUsuario(user);
+      setCargando(false);
+      
+      if (user) {
+        console.log('Usuario autenticado:', user.email);
+        cargarDatosIniciales();
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Calcular estadísticas cuando cambien los datos
+  useEffect(() => {
+    if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
+      calculateStats();
+    }
+  }, [data]);
+
+  // Aplicar filtros cuando cambien
+  useEffect(() => {
+    applyFilters();
+  }, [filters]);
+  // FUNCIONES DE AUTENTICACIÓN
+  const handleLogin = async (email, password) => {
+    return await iniciarSesion(email, password);
+  };
+
+  const handleLogout = async () => {
+    const confirmar = window.confirm('¿Estás seguro de cerrar sesión?');
+    if (confirmar) {
+      await cerrarSesion();
+      setData({
+        stockActual: [],
+        ventasDiarias: [],
+        ventasHistoricas: [],
+        ultimaFechaStock: null
+      });
+    }
+  };
+
+  const handleCrearUsuario = async () => {
+    const email = prompt('Email del nuevo usuario:');
+    if (!email) return;
+    
+    const password = prompt('Contraseña (mínimo 6 caracteres):');
+    if (!password) return;
+
+    const resultado = await crearUsuario(email, password);
+    if (resultado.success) {
+      alert('✅ Usuario creado exitosamente');
+    } else {
+      alert('❌ ' + resultado.error);
+    }
+  };
+  // RENDERS CONDICIONALES
+  // Si está cargando
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay usuario, mostrar login
+  if (!usuario) {
+    return <Login onLogin={handleLogin} />;
+  }
+  // FUNCIONES DE PROCESAMIENTO DE ARCHIVOS
+  const processExcelFile = (file, type) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const workbook = XLSX.read(e.target.result, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          const processedData = jsonData.slice(1).map(row => ({
+            codigo: row[0]?.toString() || '',
+            descripcion: row[1] || '',
+            cantidad: parseInt(row[2]) || 0,
+            fecha: selectedDate,
+            tipo: type
+          })).filter(item => item.codigo && item.cantidad > 0);
+          
+          resolve(processedData);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  const handleVentasUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const processedData = await processExcelFile(file, 'ventas');
+      
+      setData(prevData => ({
+        ...prevData,
+        ventasDiarias: [...prevData.ventasDiarias, ...processedData]
+      }));
+
+      event.target.value = '';
+      alert(`✅ Ventas del día cargadas: ${processedData.length} registros para ${selectedDate}`);
+    } catch (error) {
+      alert('❌ Error al procesar el archivo de ventas. Verifica el formato.');
+    }
+  };
+
+  const handleStockUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const processedData = await processExcelFile(file, 'stock');
+      
+      setData(prevData => ({
+        ...prevData,
+        stockActual: processedData,
+        ultimaFechaStock: selectedDate
+      }));
+
+      event.target.value = '';
+      alert(`✅ Stock actualizado completamente: ${processedData.length} productos para ${selectedDate}`);
+    } catch (error) {
+      alert('❌ Error al procesar el archivo de stock. Verifica el formato.');
+    }
+  };
+
+  const handleHistoricalUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const mesDesde = document.getElementById('mes-desde').value;
+    const mesHasta = document.getElementById('mes-hasta').value;
+
+    if (!mesDesde || !mesHasta) {
+      alert('⚠️ Por favor, selecciona el rango de fechas para los datos históricos');
+      return;
+    }
+
+    if (data.ventasHistoricas.length > 0) {
+      const confirmar = window.confirm(
+        '⚠️ Ya tienes datos históricos cargados.\n\n' +
+        '¿Quieres reemplazarlos con estos nuevos datos?\n' +
+        'Los datos históricos solo deberían cargarse UNA VEZ.'
+      );
+      if (!confirmar) return;
+    }
+
+    try {
+      const processedData = await processExcelFile(file, 'ventas-historicas');
+      
+      const startDate = new Date(mesDesde + '-01');
+      const endDate = new Date(mesHasta + '-01');
+      endDate.setMonth(endDate.getMonth() + 1, 0);
+      
+      const diffTime = Math.abs(endDate - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const historicalData = processedData.map(item => {
+        const cantidadPromedioDiario = item.cantidad / diffDays;
+        const registrosPorSKU = [];
+        const fechasDistribuidas = [];
+        
+        for (let i = 0; i < Math.min(diffDays, 30); i++) {
+          const fecha = new Date(startDate);
+          fecha.setDate(fecha.getDate() + Math.floor((i * diffDays) / 30));
+          fechasDistribuidas.push(fecha.toISOString().split('T')[0]);
+        }
+        
+        fechasDistribuidas.forEach(fecha => {
+          registrosPorSKU.push({
+            codigo: item.codigo,
+            descripcion: item.descripcion,
+            cantidad: cantidadPromedioDiario,
+            fecha: fecha,
+            tipo: 'ventas-historicas'
+          });
+        });
+        
+        return registrosPorSKU;
+      }).flat();
+
+      setData(prevData => ({
+        ...prevData,
+        ventasHistoricas: historicalData
+      }));
+
+      event.target.value = '';
+      document.getElementById('mes-desde').value = '';
+      document.getElementById('mes-hasta').value = '';
+      
+      alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.`);
+    } catch (error) {
+      alert('❌ Error al procesar el archivo histórico. Verifica el formato.');
+    }
+  };
+  // FUNCIONES DE EXPORTACIÓN E IMPORTACIÓN
   const exportarTodosLosDatos = () => {
     const dataToExport = {
       ...data,
@@ -519,7 +517,7 @@ const StockManagementSystem = () => {
   };
 
   const stats = getDashboardStats();
-
+  // RETURN JSX
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header con botones de autenticación */}
@@ -639,8 +637,7 @@ const StockManagementSystem = () => {
           </nav>
         </div>
       </div>
-
-      {/* Upload Tab */}
+{/* Upload Tab */}
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="mb-6">
@@ -719,8 +716,6 @@ const StockManagementSystem = () => {
                   className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 cursor-pointer inline-block"
                 >
                   <FileSpreadsheet className="w-4 h-4 inline mr-2" />
-                      >
-                  <FileSpreadsheet className="w-4 h-4 inline mr-2" />
                   Actualizar Stock
                 </label>
               </div>
@@ -794,8 +789,7 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-
-      {/* Dashboard Tab */}
+{/* Dashboard Tab */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -858,8 +852,7 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-
-      {/* Analysis Tab */}
+{/* Analysis Tab */}
       {activeTab === 'analysis' && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
@@ -869,21 +862,7 @@ const StockManagementSystem = () => {
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">Más Vendidos (30 días)</h4>
                 <div className="space-y-2">
-                  {[...data.ventasDiarias, ...data.ventasHistoricas]
-                    .filter(item => {
-                      const fechaItem = new Date(item.fecha);
-                      const hace30Dias = new Date();
-                      hace30Dias.setDate(hace30Dias.getDate() - 30);
-                      return fechaItem >= hace30Dias;
-                    })
-                    .reduce((acc, item) => {
-                      if (!acc[item.codigo]) {
-                        acc[item.codigo] = { codigo: item.codigo, descripcion: item.descripcion, total: 0 };
-                      }
-                      acc[item.codigo].total += item.cantidad;
-                      return acc;
-                    }, {})
-                    && Object.values([...data.ventasDiarias, ...data.ventasHistoricas]
+                  {Object.values([...data.ventasDiarias, ...data.ventasHistoricas]
                     .filter(item => {
                       const fechaItem = new Date(item.fecha);
                       const hace30Dias = new Date();
@@ -1008,8 +987,7 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-
-      {/* Alerts Tab */}
+{/* Alerts Tab */}
       {activeTab === 'alerts' && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
