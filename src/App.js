@@ -49,7 +49,6 @@ const StockManagementSystem = () => {
   const cargarDatosIniciales = async () => {
     const datosGuardados = await obtenerDatos();
     if (datosGuardados) {
-      // Migrar datos antiguos si es necesario
       if (datosGuardados.stock && datosGuardados.movements) {
         const nuevoFormato = {
           stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
@@ -121,8 +120,7 @@ const StockManagementSystem = () => {
     return <Login onLogin={handleLogin} />;
   }
 
-  // ========== FUNCIONES ORIGINALES ==========
-
+  // Funciones originales
   const processExcelFile = (file, type) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -222,7 +220,6 @@ const StockManagementSystem = () => {
 
       const historicalData = processedData.map(item => {
         const cantidadPromedioDiario = item.cantidad / diffDays;
-        
         const registrosPorSKU = [];
         const fechasDistribuidas = [];
         
@@ -525,7 +522,6 @@ const StockManagementSystem = () => {
   };
 
   const stats = getDashboardStats();
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header con botones de autenticación */}
@@ -594,12 +590,6 @@ const StockManagementSystem = () => {
         <p className="text-gray-600">Neumáticos Olmos - Control y Análisis de Inventario</p>
       </div>
 
-      {/* Resto del contenido original - Navigation Tabs, Upload, Dashboard, Analysis, Alerts... */}
-      {/* (Todo el contenido JSX que ya tenías, desde la línea de Navigation Tabs hasta el final) */}
-    </div>
-  );
-};
-export default StockManagementSystem;
       {/* Navigation Tabs */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
@@ -651,8 +641,7 @@ export default StockManagementSystem;
           </nav>
         </div>
       </div>
-
-      {/* Upload Tab */}
+{/* Upload Tab */}
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="mb-6">
@@ -668,7 +657,6 @@ export default StockManagementSystem;
             />
           </div>
 
-          {/* Información del estado actual */}
           <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <h4 className="font-medium text-blue-900 mb-2">📊 Estado Actual de los Datos</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -693,16 +681,13 @@ export default StockManagementSystem;
             </div>
           </div>
 
-          {/* Carga Diaria */}
           <div className="mb-8">
             <h3 className="text-lg font-medium text-gray-900 mb-4">📅 Carga Diaria</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-red-400 transition-colors">
                 <TrendingDown className="w-12 h-12 text-red-500 mx-auto mb-4" />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">Ventas del Día</h4>
-                <p className="text-sm text-gray-500 mb-4">
-                  Se ACUMULA día a día para el histórico
-                </p>
+                <p className="text-sm text-gray-500 mb-4">Se ACUMULA día a día para el histórico</p>
                 <input
                   type="file"
                   accept=".xlsx,.xls"
@@ -722,9 +707,7 @@ export default StockManagementSystem;
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                 <BarChart3 className="w-12 h-12 text-blue-500 mx-auto mb-4" />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">Stock Actual</h4>
-                <p className="text-sm text-gray-500 mb-4">
-                  REEMPLAZA el stock anterior completamente
-                </p>
+                <p className="text-sm text-gray-500 mb-4">REEMPLAZA el stock anterior completamente</p>
                 <input
                   type="file"
                   accept=".xlsx,.xls"
@@ -743,7 +726,6 @@ export default StockManagementSystem;
             </div>
           </div>
 
-          {/* Carga Histórica */}
           <div className="mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               📊 Carga de Datos Históricos 
@@ -770,19 +752,11 @@ export default StockManagementSystem;
                   <div className="flex flex-wrap gap-4 items-center">
                     <div className="flex items-center space-x-2">
                       <label className="text-sm font-medium text-yellow-800">Desde:</label>
-                      <input
-                        type="month"
-                        className="border border-yellow-300 rounded px-2 py-1 text-sm"
-                        id="mes-desde"
-                      />
+                      <input type="month" className="border border-yellow-300 rounded px-2 py-1 text-sm" id="mes-desde" />
                     </div>
                     <div className="flex items-center space-x-2">
                       <label className="text-sm font-medium text-yellow-800">Hasta:</label>
-                      <input
-                        type="month"
-                        className="border border-yellow-300 rounded px-2 py-1 text-sm"
-                        id="mes-hasta"
-                      />
+                      <input type="month" className="border border-yellow-300 rounded px-2 py-1 text-sm" id="mes-hasta" />
                     </div>
                     <div>
                       <input
@@ -807,9 +781,7 @@ export default StockManagementSystem;
           </div>
 
           <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="font-medium text-gray-900">Formato de archivos esperado:</h4>
-            </div>
+            <h4 className="font-medium text-gray-900 mb-2">Formato de archivos esperado:</h4>
             <div className="text-sm text-gray-600 space-y-2">
               <div><strong>📈 Ventas diarias:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD (se acumula cada día)</div>
               <div><strong>📦 Stock actual:</strong> CODIGO | DESCRIPCIÓN | STOCK (reemplaza el anterior)</div>
@@ -835,7 +807,6 @@ export default StockManagementSystem;
                 </div>
               </div>
             </div>
-
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center">
                 <BarChart3 className="w-8 h-8 text-blue-500" />
@@ -845,7 +816,6 @@ export default StockManagementSystem;
                 </div>
               </div>
             </div>
-
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center">
                 <AlertTriangle className="w-8 h-8 text-red-500" />
@@ -855,7 +825,6 @@ export default StockManagementSystem;
                 </div>
               </div>
             </div>
-
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center">
                 <TrendingDown className="w-8 h-8 text-yellow-500" />
@@ -866,7 +835,6 @@ export default StockManagementSystem;
               </div>
             </div>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen de Datos</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -890,13 +858,13 @@ export default StockManagementSystem;
         </div>
       )}
 
-      {/* Analysis Tab */}
+      {/* Los tabs Analysis y Alerts son muy largos, seguiré en el siguiente mensaje */}
+   {/* Analysis Tab */}
       {activeTab === 'analysis' && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-6">Análisis y Tendencias</h3>
             
-            {/* Análisis rápido */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">Más Vendidos (30 días)</h4>
@@ -1000,7 +968,6 @@ export default StockManagementSystem;
               </div>
             </div>
 
-            {/* Métricas de rendimiento */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-4">Métricas de Rendimiento</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
@@ -1058,7 +1025,6 @@ export default StockManagementSystem;
                 </button>
               </div>
               
-              {/* Filtros */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
                   <div>
@@ -1077,7 +1043,6 @@ export default StockManagementSystem;
                       <option value="SIN MOVIMIENTO">Sin Movimiento</option>
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Días Stock (Min)</label>
                     <input
@@ -1088,7 +1053,6 @@ export default StockManagementSystem;
                       className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Días Stock (Max)</label>
                     <input
@@ -1099,7 +1063,6 @@ export default StockManagementSystem;
                       className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Venta Min/día</label>
                     <input
@@ -1111,7 +1074,6 @@ export default StockManagementSystem;
                       className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Venta Max/día</label>
                     <input
@@ -1123,7 +1085,6 @@ export default StockManagementSystem;
                       className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Buscar</label>
                     <input
@@ -1155,24 +1116,12 @@ export default StockManagementSystem;
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Código
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Descripción
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Días de Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Promedio Venta
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días de Stock</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Promedio Venta</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -1184,21 +1133,11 @@ export default StockManagementSystem;
                         <span>{alert.nivel}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {alert.codigo}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                      {alert.descripcion}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.stock}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.diasStock} días
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.promedioVenta}/día
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{alert.codigo}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{alert.descripcion}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{alert.stock}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{alert.diasStock} días</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{alert.promedioVenta}/día</td>
                   </tr>
                 ))}
               </tbody>
