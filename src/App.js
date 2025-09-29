@@ -63,12 +63,17 @@ const StockManagementSystem = () => {
     }
   };
 
-  // Guardar datos en Firebase cada vez que cambien
+  // Calcular estadísticas cuando cambien los datos
   useEffect(() => {
-    if (usuario && (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0)) {
-      guardarDatos(data);
+    if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
+      calculateStats();
     }
-  }, [data, usuario]);
+  }, [data]);
+
+  // Aplicar filtros cuando cambien
+  useEffect(() => {
+    applyFilters();
+  }, [filters, alerts]);
 
   // Funciones de autenticación
   const handleLogin = async (email, password) => {
@@ -257,12 +262,6 @@ const StockManagementSystem = () => {
     }
   };
 
-useEffect(() => {
-  if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
-    calculateStats();
-  }
-}, [data]);
-
   const calculateStats = () => {
     const stockActual = data.stockActual;
     const todasLasVentas = [...data.ventasDiarias, ...data.ventasHistoricas];
@@ -397,10 +396,6 @@ useEffect(() => {
     setFilteredAlerts(filtered);
   };
 
-useEffect(() => {
-  applyFilters();
-}, [filters]);
-
   const resetFilters = () => {
     setFilters({
       nivel: 'all',
@@ -524,6 +519,7 @@ useEffect(() => {
   };
 
   const stats = getDashboardStats();
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header con botones de autenticación */}
@@ -643,7 +639,8 @@ useEffect(() => {
           </nav>
         </div>
       </div>
-{/* Upload Tab */}
+
+      {/* Upload Tab */}
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="mb-6">
@@ -721,6 +718,8 @@ useEffect(() => {
                   htmlFor="stock-upload"
                   className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 cursor-pointer inline-block"
                 >
+                  <FileSpreadsheet className="w-4 h-4 inline mr-2" />
+                      >
                   <FileSpreadsheet className="w-4 h-4 inline mr-2" />
                   Actualizar Stock
                 </label>
@@ -860,8 +859,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Los tabs Analysis y Alerts son muy largos, seguiré en el siguiente mensaje */}
-   {/* Analysis Tab */}
+      {/* Analysis Tab */}
       {activeTab === 'analysis' && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
