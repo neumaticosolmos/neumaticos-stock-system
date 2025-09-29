@@ -44,13 +44,13 @@ export const guardarDatos = async (datos) => {
     
     // Limpiar chunks anteriores de ventas diarias
     for (let i = 0; i < 20; i++) { // Limpiar hasta 20 chunks previos
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${i}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${i});
       batch.delete(chunkRef);
     }
     
     // Guardar nuevos chunks de ventas diarias
     ventasChunks.forEach((chunk, index) => {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${index}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${index});
       batch.set(chunkRef, {
         data: chunk,
         chunkIndex: index,
@@ -67,13 +67,13 @@ export const guardarDatos = async (datos) => {
     if (ventasHistoricas.length > 0) {
       // Limpiar chunks anteriores de ventas históricas
       for (let i = 0; i < 50; i++) { // Limpiar hasta 50 chunks previos
-        const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${i}`);
+        const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${i});
         batch.delete(chunkRef);
       }
       
       // Guardar nuevos chunks de ventas históricas
       historicasChunks.forEach((chunk, index) => {
-        const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${index}`);
+        const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${index});
         batch.set(chunkRef, {
           data: chunk,
           chunkIndex: index,
@@ -130,7 +130,7 @@ export const obtenerDatos = async () => {
     // 3. Obtener ventas diarias
     let ventasDiarias = [];
     for (let i = 0; i < (metadata.chunksVentasDiarias || 0); i++) {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${i}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${i});
       const chunkSnap = await getDoc(chunkRef);
       if (chunkSnap.exists()) {
         const chunkData = chunkSnap.data();
@@ -141,7 +141,7 @@ export const obtenerDatos = async () => {
     // 4. Obtener ventas históricas
     let ventasHistoricas = [];
     for (let i = 0; i < (metadata.chunksVentasHistoricas || 0); i++) {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${i}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${i});
       const chunkSnap = await getDoc(chunkRef);
       if (chunkSnap.exists()) {
         const chunkData = chunkSnap.data();
@@ -192,7 +192,7 @@ export const limpiarDatosAntiguos = async () => {
     };
 
     await guardarDatos(datosLimpios);
-    console.log(`Limpieza completada. Ventas diarias: ${datos.ventasDiarias.length} → ${ventasFiltradas.length}`);
+    console.log(Limpieza completada. Ventas diarias: ${datos.ventasDiarias.length} → ${ventasFiltradas.length});
     return true;
   } catch (error) {
     console.error('Error limpiando datos antiguos:', error);
