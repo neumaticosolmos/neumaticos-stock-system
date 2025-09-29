@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, BarChart3, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Calendar, FileSpreadsheet, Download } from 'lucide-react';
+import { Upload, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Calendar, FileSpreadsheet, Download, LogOut, UserPlus } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { guardarDatos, obtenerDatos } from './firebase';
+import { guardarDatos, obtenerDatos, iniciarSesion, cerrarSesion, observarEstadoAuth, crearUsuario } from './firebase';
+import Login from './Login';
 
 const StockManagementSystem = () => {
+  // Estados de autenticación
+  const [usuario, setUsuario] = useState(null);
+  const [cargando, setCargando] = useState(true);
+
+  // Estados originales
   const [data, setData] = useState({
-    stockActual: [], // Stock del día actual (se reemplaza)
-    ventasDiarias: [], // Ventas día a día (se acumula)
-    ventasHistoricas: [], // Ventas mensuales históricas (carga una vez)
-    ultimaFechaStock: null // Última fecha de actualización del stock
+    stockActual: [],
+    ventasDiarias: [],
+    ventasHistoricas: [],
+    ultimaFechaStock: null
   });
   
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -24,36 +30,99 @@ const StockManagementSystem = () => {
     search: ''
   });
 
-  // Cargar datos de Firebase al iniciar
+  // Observar estado de autenticación
   useEffect(() => {
-    const cargarDatos = async () => {
-      const datosGuardados = await obtenerDatos();
-      if (datosGuardados) {
-        // Migrar datos antiguos si es necesario
-        if (datosGuardados.stock && datosGuardados.movements) {
-          const nuevoFormato = {
-            stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
-            ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
-            ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
-            ultimaFechaStock: selectedDate
-          };
-          setData(nuevoFormato);
-        } else {
-          setData(datosGuardados);
-        }
+    const unsubscribe = observarEstadoAuth((user) => {
+      setUsuario(user);
+      setCargando(false);
+      
+      if (user) {
+        console.log('Usuario autenticado:', user.email);
+        cargarDatosIniciales();
       }
-    };
-    cargarDatos();
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Cargar datos de Firebase
+  const cargarDatosIniciales = async () => {
+    const datosGuardados = await obtenerDatos();
+    if (datosGuardados) {
+      // Migrar datos antiguos si es necesario
+      if (datosGuardados.stock && datosGuardados.movements) {
+        const nuevoFormato = {
+          stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
+          ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
+          ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
+          ultimaFechaStock: selectedDate
+        };
+        setData(nuevoFormato);
+      } else {
+        setData(datosGuardados);
+      }
+    }
+  };
 
   // Guardar datos en Firebase cada vez que cambien
   useEffect(() => {
-    if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
+    if (usuario && (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0)) {
       guardarDatos(data);
     }
-  }, [data]);
+  }, [data, usuario]);
 
-  // Función para procesar archivos Excel
+  // Funciones de autenticación
+  const handleLogin = async (email, password) => {
+    return await iniciarSesion(email, password);
+  };
+
+  const handleLogout = async () => {
+    const confirmar = window.confirm('¿Estás seguro de cerrar sesión?');
+    if (confirmar) {
+      await cerrarSesion();
+      setData({
+        stockActual: [],
+        ventasDiarias: [],
+        ventasHistoricas: [],
+        ultimaFechaStock: null
+      });
+    }
+  };
+
+  const handleCrearUsuario = async () => {
+    const email = prompt('Email del nuevo usuario:');
+    if (!email) return;
+    
+    const password = prompt('Contraseña (mínimo 6 caracteres):');
+    if (!password) return;
+
+    const resultado = await crearUsuario(email, password);
+    if (resultado.success) {
+      alert('✅ Usuario creado exitosamente');
+    } else {
+      alert('❌ ' + resultado.error);
+    }
+  };
+
+  // Si está cargando
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay usuario, mostrar login
+  if (!usuario) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // ========== FUNCIONES ORIGINALES ==========
+
   const processExcelFile = (file, type) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -81,7 +150,6 @@ const StockManagementSystem = () => {
     });
   };
 
-  // Función para cargar archivo de VENTAS DIARIAS
   const handleVentasUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -101,7 +169,6 @@ const StockManagementSystem = () => {
     }
   };
 
-  // Función para cargar archivo de STOCK ACTUAL (reemplaza el anterior)
   const handleStockUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -111,7 +178,7 @@ const StockManagementSystem = () => {
       
       setData(prevData => ({
         ...prevData,
-        stockActual: processedData, // REEMPLAZA completamente el stock anterior
+        stockActual: processedData,
         ultimaFechaStock: selectedDate
       }));
 
@@ -122,7 +189,6 @@ const StockManagementSystem = () => {
     }
   };
 
-  // Función para cargar datos históricos (una sola vez)
   const handleHistoricalUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -135,7 +201,6 @@ const StockManagementSystem = () => {
       return;
     }
 
-    // Verificar si ya hay datos históricos
     if (data.ventasHistoricas.length > 0) {
       const confirmar = window.confirm(
         '⚠️ Ya tienes datos históricos cargados.\n\n' +
@@ -182,7 +247,7 @@ const StockManagementSystem = () => {
 
       setData(prevData => ({
         ...prevData,
-        ventasHistoricas: historicalData // REEMPLAZA los datos históricos
+        ventasHistoricas: historicalData
       }));
 
       event.target.value = '';
@@ -195,15 +260,12 @@ const StockManagementSystem = () => {
     }
   };
 
-  // Calcular estadísticas y alertas
   useEffect(() => {
     calculateStats();
   }, [data]);
 
   const calculateStats = () => {
     const stockActual = data.stockActual;
-    
-    // Combinar ventas diarias + históricas para el análisis
     const todasLasVentas = [...data.ventasDiarias, ...data.ventasHistoricas];
     
     const ventasUltimos90Dias = todasLasVentas.filter(item => {
@@ -305,7 +367,6 @@ const StockManagementSystem = () => {
     setFilteredAlerts(newAlerts);
   };
 
-  // Función para aplicar filtros
   const applyFilters = () => {
     let filtered = [...alerts];
 
@@ -352,7 +413,6 @@ const StockManagementSystem = () => {
     });
   };
 
-  // Función para exportar todos los datos
   const exportarTodosLosDatos = () => {
     const dataToExport = {
       ...data,
@@ -373,7 +433,6 @@ const StockManagementSystem = () => {
     alert('✅ Backup de datos exportado correctamente');
   };
 
-  // Función para importar datos desde backup
   const importarDatosBackup = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -384,7 +443,6 @@ const StockManagementSystem = () => {
         const backupData = JSON.parse(e.target.result);
         
         if (backupData.stockActual !== undefined) {
-          // Formato nuevo
           const confirmImport = window.confirm(
             `¿Estás seguro de importar este backup?\n\n` +
             `Fecha del backup: ${new Date(backupData.fechaExportacion).toLocaleString('es-AR')}\n` +
@@ -414,7 +472,6 @@ const StockManagementSystem = () => {
     event.target.value = '';
   };
 
-  // Función para limpiar todos los datos
   const limpiarTodosLosDatos = () => {
     const confirmClear = window.confirm(
       '⚠️ ¿Estás seguro de borrar TODOS los datos?\n\n' +
@@ -436,7 +493,6 @@ const StockManagementSystem = () => {
     }
   };
 
-  // Función para exportar reportes
   const exportarReporte = () => {
     const ws = XLSX.utils.json_to_sheet(alerts.map(alert => ({
       'Código': alert.codigo,
@@ -452,7 +508,6 @@ const StockManagementSystem = () => {
     XLSX.writeFile(wb, `analisis_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // Calcular estadísticas del dashboard
   const getDashboardStats = () => {
     const hoy = new Date().toISOString().split('T')[0];
     const ventasHoy = data.ventasDiarias.filter(item => item.fecha === hoy);
@@ -473,12 +528,25 @@ const StockManagementSystem = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
+      {/* Header con botones de autenticación */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Sistema de Gestión de Stock</h1>
           <div className="flex items-center space-x-4">
+            <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded">
+              {usuario?.email}
+            </div>
+            
             <div className="flex items-center space-x-2">
+              <button
+                onClick={handleCrearUsuario}
+                className="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 flex items-center"
+                title="Crear nuevo usuario"
+              >
+                <UserPlus className="w-4 h-4 mr-1" />
+                Nuevo Usuario
+              </button>
+
               <button
                 onClick={exportarTodosLosDatos}
                 className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 flex items-center"
@@ -511,12 +579,27 @@ const StockManagementSystem = () => {
               >
                 🗑️
               </button>
+
+              <button
+                onClick={handleLogout}
+                className="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 flex items-center"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                Salir
+              </button>
             </div>
           </div>
         </div>
         <p className="text-gray-600">Neumáticos Olmos - Control y Análisis de Inventario</p>
       </div>
 
+      {/* Resto del contenido original - Navigation Tabs, Upload, Dashboard, Analysis, Alerts... */}
+      {/* (Todo el contenido JSX que ya tenías, desde la línea de Navigation Tabs hasta el final) */}
+    </div>
+  );
+};
+export default StockManagementSystem;
       {/* Navigation Tabs */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
