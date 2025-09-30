@@ -178,14 +178,14 @@ const StockManagementSystem = () => {
   };
 
   // Cargar datos de Firebase
-  const cargarDatosIniciales = async () => {
+const cargarDatosIniciales = async () => {
   const datosGuardados = await obtenerDatos();
   if (datosGuardados) {
     console.log('✅ Datos cargados desde Firebase:', datosGuardados);
     setData(datosGuardados);
   }
 };
-          stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
+  stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
           ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
           ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
           ultimaFechaStock: selectedDate
