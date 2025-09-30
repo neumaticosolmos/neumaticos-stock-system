@@ -1116,12 +1116,11 @@ const StockManagementSystem = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Promedio Venta</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAlerts
-                 {filteredAlerts.map((alert, index) => (
+                <tbody className="bg-white divide-y divide-gray-200">
+                {filteredAlerts.map((alert, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${alert.color}`}>
+                      <div className={'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + alert.color}>
                         <span className="mr-1">{alert.icono}</span>
                         <span>{alert.nivel}</span>
                       </div>
