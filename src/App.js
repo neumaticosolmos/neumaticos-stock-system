@@ -8,7 +8,7 @@ const StockManagementSystem = () => {
   // Estados de autenticación
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false); // NUEVO: estado para mostrar cuando se guarda
+  const [guardando, setGuardando] = useState(false);
 
   // Estados originales
   const [data, setData] = useState({
@@ -179,10 +179,12 @@ const StockManagementSystem = () => {
 
   // Cargar datos de Firebase
   const cargarDatosIniciales = async () => {
-    const datosGuardados = await obtenerDatos();
-    if (datosGuardados) {
-      if (datosGuardados.stock && datosGuardados.movements) {
-        const nuevoFormato = {
+  const datosGuardados = await obtenerDatos();
+  if (datosGuardados) {
+    console.log('✅ Datos cargados desde Firebase:', datosGuardados);
+    setData(datosGuardados);
+  }
+};
           stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
           ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
           ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
@@ -240,6 +242,34 @@ const StockManagementSystem = () => {
       if (user) {
         console.log('Usuario autenticado:', user.email);
         cargarDatosIniciales();
+        // AUTO-GUARDAR EN FIREBASE
+useEffect(() => {
+  const guardarAutomaticamente = async () => {
+    if (!usuario) return;
+    
+    const tieneAlgunDato = 
+      data.stockActual.length > 0 || 
+      data.ventasDiarias.length > 0 || 
+      data.ventasHistoricas.length > 0;
+    
+    if (!tieneAlgunDato) return;
+
+    setGuardando(true);
+    const resultado = await guardarDatos(data);
+    
+    if (resultado) {
+      console.log('✅ Datos sincronizados con Firebase');
+    }
+    
+    setTimeout(() => setGuardando(false), 1000);
+  };
+
+  const timeoutId = setTimeout(() => {
+    guardarAutomaticamente();
+  }, 500);
+
+  return () => clearTimeout(timeoutId);
+}, [data, usuario]);
       }
     });
 
@@ -563,6 +593,12 @@ const StockManagementSystem = () => {
   // RETURN JSX
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+    {guardando && (
+  <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center z-50">
+    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+    Sincronizando con Firebase...
+  </div>
+)}
       {/* NUEVO: Indicador de sincronización */}
       {guardando && (
         <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center z-50">
