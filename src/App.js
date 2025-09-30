@@ -1117,8 +1117,8 @@ const StockManagementSystem = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAl
-                 erts.map((alert, index) => (
+                {filteredAlerts
+                 {filteredAlerts.map((alert, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${alert.color}`}>
