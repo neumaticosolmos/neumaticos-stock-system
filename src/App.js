@@ -5,11 +5,10 @@ import { guardarDatos, obtenerDatos, iniciarSesion, cerrarSesion, observarEstado
 import Login from './Login';
 
 const StockManagementSystem = () => {
-  // Estados de autenticación
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
 
-  // Estados originales
   const [data, setData] = useState({
     stockActual: [],
     ventasDiarias: [],
@@ -29,7 +28,7 @@ const StockManagementSystem = () => {
     ventaMax: '',
     search: ''
   });
-  // FUNCIONES DE CÁLCULO Y FILTROS
+
   const calculateStats = () => {
     const stockActual = data.stockActual;
     const todasLasVentas = [...data.ventasDiarias, ...data.ventasHistoricas];
@@ -174,26 +173,43 @@ const StockManagementSystem = () => {
       search: ''
     });
   };
-  // Cargar datos de Firebase
   const cargarDatosIniciales = async () => {
     const datosGuardados = await obtenerDatos();
     if (datosGuardados) {
-      if (datosGuardados.stock && datosGuardados.movements) {
-        const nuevoFormato = {
-          stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
-          ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
-          ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
-          ultimaFechaStock: selectedDate
-        };
-        setData(nuevoFormato);
-      } else {
-        setData(datosGuardados);
-      }
+      console.log('✅ Datos cargados desde Firebase:', datosGuardados);
+      setData(datosGuardados);
     }
   };
 
-  // HOOKS useEffect
-  // Observar estado de autenticación
+  // AUTO-GUARDAR EN FIREBASE
+  useEffect(() => {
+    const guardarAutomaticamente = async () => {
+      if (!usuario) return;
+      
+      const tieneAlgunDato = 
+        data.stockActual.length > 0 || 
+        data.ventasDiarias.length > 0 || 
+        data.ventasHistoricas.length > 0;
+      
+      if (!tieneAlgunDato) return;
+
+      setGuardando(true);
+      const resultado = await guardarDatos(data);
+      
+      if (resultado) {
+        console.log('✅ Datos sincronizados con Firebase');
+      }
+      
+      setTimeout(() => setGuardando(false), 1000);
+    };
+
+    const timeoutId = setTimeout(() => {
+      guardarAutomaticamente();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [data, usuario]);
+
   useEffect(() => {
     const unsubscribe = observarEstadoAuth((user) => {
       setUsuario(user);
@@ -208,18 +224,16 @@ const StockManagementSystem = () => {
     return () => unsubscribe();
   }, []);
 
-  // Calcular estadísticas cuando cambien los datos
   useEffect(() => {
     if (data.stockActual.length > 0 || data.ventasDiarias.length > 0 || data.ventasHistoricas.length > 0) {
       calculateStats();
     }
   }, [data]);
 
-  // Aplicar filtros cuando cambien
   useEffect(() => {
     applyFilters();
   }, [filters]);
-  // FUNCIONES DE AUTENTICACIÓN
+
   const handleLogin = async (email, password) => {
     return await iniciarSesion(email, password);
   };
@@ -246,13 +260,12 @@ const StockManagementSystem = () => {
 
     const resultado = await crearUsuario(email, password);
     if (resultado.success) {
-      alert('✅ Usuario creado exitosamente');
+      alert('Usuario creado exitosamente');
     } else {
-      alert('❌ ' + resultado.error);
+      alert('Error: ' + resultado.error);
     }
   };
-  // RENDERS CONDICIONALES
-  // Si está cargando
+
   if (cargando) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -264,11 +277,9 @@ const StockManagementSystem = () => {
     );
   }
 
-  // Si no hay usuario, mostrar login
   if (!usuario) {
     return <Login onLogin={handleLogin} />;
   }
-  // FUNCIONES DE PROCESAMIENTO DE ARCHIVOS
   const processExcelFile = (file, type) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -309,9 +320,9 @@ const StockManagementSystem = () => {
       }));
 
       event.target.value = '';
- alert('Ventas del día cargadas: ' + processedData.length + ' registros');
+      alert('Ventas del dia cargadas: ' + processedData.length + ' registros');
     } catch (error) {
-      alert('❌ Error al procesar el archivo de ventas. Verifica el formato.');
+      alert('Error al procesar el archivo de ventas. Verifica el formato.');
     }
   };
 
@@ -329,9 +340,9 @@ const StockManagementSystem = () => {
       }));
 
       event.target.value = '';
-     alert('Stock actualizado: ' + processedData.length + ' productos');
+      alert('Stock actualizado: ' + processedData.length + ' productos');
     } catch (error) {
-      alert('❌ Error al procesar el archivo de stock. Verifica el formato.');
+      alert('Error al procesar el archivo de stock. Verifica el formato.');
     }
   };
 
@@ -343,15 +354,15 @@ const StockManagementSystem = () => {
     const mesHasta = document.getElementById('mes-hasta').value;
 
     if (!mesDesde || !mesHasta) {
-      alert('⚠️ Por favor, selecciona el rango de fechas para los datos históricos');
+      alert('Por favor, selecciona el rango de fechas para los datos historicos');
       return;
     }
 
     if (data.ventasHistoricas.length > 0) {
       const confirmar = window.confirm(
-        '⚠️ Ya tienes datos históricos cargados.\n\n' +
-        '¿Quieres reemplazarlos con estos nuevos datos?\n' +
-        'Los datos históricos solo deberían cargarse UNA VEZ.'
+        'Ya tienes datos historicos cargados.\n\n' +
+        'Quieres reemplazarlos con estos nuevos datos?\n' +
+        'Los datos historicos solo deberian cargarse UNA VEZ.'
       );
       if (!confirmar) return;
     }
@@ -399,12 +410,11 @@ const StockManagementSystem = () => {
       document.getElementById('mes-desde').value = '';
       document.getElementById('mes-hasta').value = '';
       
-    alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.`);
+      alert('Datos historicos procesados: ' + processedData.length + ' SKUs. Estos datos quedan guardados permanentemente.');
     } catch (error) {
-      alert('❌ Error al procesar el archivo histórico. Verifica el formato.');
+      alert('Error al procesar el archivo historico. Verifica el formato.');
     }
   };
-  // FUNCIONES DE EXPORTACIÓN E IMPORTACIÓN
   const exportarTodosLosDatos = () => {
     const dataToExport = {
       ...data,
@@ -416,13 +426,13 @@ const StockManagementSystem = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = backup-neumaticos-olmos-${new Date().toISOString().split('T')[0]}.json;
+    a.download = `backup-neumaticos-olmos-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    alert('✅ Backup de datos exportado correctamente');
+    alert('Backup de datos exportado correctamente');
   };
 
   const importarDatosBackup = (event) => {
@@ -436,12 +446,12 @@ const StockManagementSystem = () => {
         
         if (backupData.stockActual !== undefined) {
           const confirmImport = window.confirm(
-            ¿Estás seguro de importar este backup?\n\n +
-            Fecha del backup: ${new Date(backupData.fechaExportacion).toLocaleString('es-AR')}\n +
-            Stock Actual: ${backupData.stockActual.length} productos\n +
-            Ventas Diarias: ${backupData.ventasDiarias.length} registros\n +
-            Ventas Históricas: ${backupData.ventasHistoricas.length} registros\n\n +
-            Esto reemplazará todos los datos actuales.
+            'Estas seguro de importar este backup?\n\n' +
+            'Fecha del backup: ' + new Date(backupData.fechaExportacion).toLocaleString('es-AR') + '\n' +
+            'Stock Actual: ' + backupData.stockActual.length + ' productos\n' +
+            'Ventas Diarias: ' + backupData.ventasDiarias.length + ' registros\n' +
+            'Ventas Historicas: ' + backupData.ventasHistoricas.length + ' registros\n\n' +
+            'Esto reemplazara todos los datos actuales.'
           );
           
           if (confirmImport) {
@@ -451,13 +461,13 @@ const StockManagementSystem = () => {
               ventasHistoricas: backupData.ventasHistoricas || [],
               ultimaFechaStock: backupData.ultimaFechaStock || null
             });
-            alert('✅ Datos importados correctamente');
+            alert('Datos importados correctamente');
           }
         } else {
-          alert('❌ Archivo de backup inválido o formato antiguo');
+          alert('Archivo de backup invalido o formato antiguo');
         }
       } catch (error) {
-        alert('❌ Error al leer el archivo de backup');
+        alert('Error al leer el archivo de backup');
       }
     };
     reader.readAsText(file);
@@ -466,13 +476,13 @@ const StockManagementSystem = () => {
 
   const limpiarTodosLosDatos = () => {
     const confirmClear = window.confirm(
-      '⚠️ ¿Estás seguro de borrar TODOS los datos?\n\n' +
-      'Esta acción no se puede deshacer.\n' +
+      'Estas seguro de borrar TODOS los datos?\n\n' +
+      'Esta accion no se puede deshacer.\n' +
       'Te recomendamos hacer un backup antes.'
     );
     
     if (confirmClear) {
-      const doubleConfirm = window.confirm('¿REALMENTE quieres borrar todo? Esta es tu última oportunidad.');
+      const doubleConfirm = window.confirm('REALMENTE quieres borrar todo? Esta es tu ultima oportunidad.');
       if (doubleConfirm) {
         setData({ 
           stockActual: [], 
@@ -480,7 +490,7 @@ const StockManagementSystem = () => {
           ventasHistoricas: [],
           ultimaFechaStock: null 
         });
-        alert('🗑️ Todos los datos han sido eliminados');
+        alert('Todos los datos han sido eliminados');
       }
     }
   };
@@ -497,7 +507,7 @@ const StockManagementSystem = () => {
     
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Análisis Stock');
-    XLSX.writeFile(wb, analisis_stock_${new Date().toISOString().split('T')[0]}.xlsx);
+    XLSX.writeFile(wb, `analisis_stock_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const getDashboardStats = () => {
@@ -517,11 +527,16 @@ const StockManagementSystem = () => {
   };
 
   const stats = getDashboardStats();
-  // RETURN JSX
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header con botones de autenticación */}
-      <div className="mb-8">
+      {guardando && (
+        <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center z-50">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+          Sincronizando...
+        </div>
+      )}
+<div className="mb-8">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Sistema de Gestión de Stock</h1>
           <div className="flex items-center space-x-4">
@@ -569,7 +584,7 @@ const StockManagementSystem = () => {
                 className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
                 title="Borrar todos los datos"
               >
-                🗑️
+                Limpiar
               </button>
 
               <button
@@ -586,7 +601,6 @@ const StockManagementSystem = () => {
         <p className="text-gray-600">Neumáticos Olmos - Control y Análisis de Inventario</p>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="mb-6">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -637,7 +651,7 @@ const StockManagementSystem = () => {
           </nav>
         </div>
       </div>
-{/* Upload Tab */}
+
       {activeTab === 'upload' && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="mb-6">
@@ -654,7 +668,7 @@ const StockManagementSystem = () => {
           </div>
 
           <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="font-medium text-blue-900 mb-2">📊 Estado Actual de los Datos</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Estado Actual de los Datos</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-blue-700">Stock Actual:</p>
@@ -671,14 +685,14 @@ const StockManagementSystem = () => {
                 <p className="text-blue-700">Datos Históricos:</p>
                 <p className="font-bold text-blue-900">{data.ventasHistoricas.length} registros</p>
                 <p className="text-xs text-blue-600">
-                  {data.ventasHistoricas.length > 0 ? 'Ya cargados ✓' : 'Pendiente de cargar'}
+                  {data.ventasHistoricas.length > 0 ? 'Ya cargados' : 'Pendiente de cargar'}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="mb-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">📅 Carga Diaria</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Carga Diaria</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-red-400 transition-colors">
                 <TrendingDown className="w-12 h-12 text-red-500 mx-auto mb-4" />
@@ -724,10 +738,10 @@ const StockManagementSystem = () => {
 
           <div className="mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              📊 Carga de Datos Históricos 
+              Carga de Datos Históricos 
               {data.ventasHistoricas.length > 0 && (
                 <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
-                  ✓ Ya cargados
+                  Ya cargados
                 </span>
               )}
             </h3>
@@ -779,17 +793,17 @@ const StockManagementSystem = () => {
           <div className="mt-8 p-4 bg-gray-50 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-2">Formato de archivos esperado:</h4>
             <div className="text-sm text-gray-600 space-y-2">
-              <div><strong>📈 Ventas diarias:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD (se acumula cada día)</div>
-              <div><strong>📦 Stock actual:</strong> CODIGO | DESCRIPCIÓN | STOCK (reemplaza el anterior)</div>
-              <div><strong>📊 Ventas históricas:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD TOTAL (carga una vez)</div>
+              <div><strong>Ventas diarias:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD (se acumula cada día)</div>
+              <div><strong>Stock actual:</strong> CODIGO | DESCRIPCIÓN | STOCK (reemplaza el anterior)</div>
+              <div><strong>Ventas históricas:</strong> CODIGO | DESCRIPCIÓN | CANTIDAD TOTAL (carga una vez)</div>
               <div className="text-xs text-gray-500 mt-2">
-                • Archivos Excel (.xlsx o .xls) | Primera fila = encabezados | Filas vacías se ignoran
+                Archivos Excel (.xlsx o .xls) | Primera fila = encabezados | Filas vacías se ignoran
               </div>
             </div>
           </div>
         </div>
       )}
-{/* Dashboard Tab */}
+
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -852,7 +866,7 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-{/* Analysis Tab */}
+
       {activeTab === 'analysis' && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
@@ -987,7 +1001,7 @@ const StockManagementSystem = () => {
           </div>
         </div>
       )}
-{/* Alerts Tab */}
+
       {activeTab === 'alerts' && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -1103,10 +1117,11 @@ const StockManagementSystem = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAlerts.map((alert, index) => (
+                {filteredAl
+                 erts.map((alert, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${alert.color}}>
+                      <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${alert.color}`}>
                         <span className="mr-1">{alert.icono}</span>
                         <span>{alert.nivel}</span>
                       </div>
