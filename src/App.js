@@ -309,7 +309,7 @@ const StockManagementSystem = () => {
       }));
 
       event.target.value = '';
-      alert(✅ Ventas del día cargadas: ${processedData.length} registros para ${selectedDate});
+     alert(`✅ Ventas del día cargadas: ${processedData.length} registros para ${selectedDate}`);
     } catch (error) {
       alert('❌ Error al procesar el archivo de ventas. Verifica el formato.');
     }
@@ -329,7 +329,7 @@ const StockManagementSystem = () => {
       }));
 
       event.target.value = '';
-      alert(✅ Stock actualizado completamente: ${processedData.length} productos para ${selectedDate});
+      alert(`✅ Stock actualizado completamente: ${processedData.length} productos para ${selectedDate});
     } catch (error) {
       alert('❌ Error al procesar el archivo de stock. Verifica el formato.');
     }
@@ -399,7 +399,7 @@ const StockManagementSystem = () => {
       document.getElementById('mes-desde').value = '';
       document.getElementById('mes-hasta').value = '';
       
-      alert(✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.);
+      alert(`✅ Datos históricos procesados: ${processedData.length} SKUs distribuidos en ${diffDays} días (${mesDesde} a ${mesHasta})\n\nESTOS DATOS QUEDAN GUARDADOS PERMANENTEMENTE.);
     } catch (error) {
       alert('❌ Error al procesar el archivo histórico. Verifica el formato.');
     }
