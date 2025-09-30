@@ -127,13 +127,13 @@ export const guardarDatos = async (datos) => {
     
     // Limpiar chunks anteriores de ventas diarias
     for (let i = 0; i < 20; i++) {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${i}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${i});
       batch.delete(chunkRef);
     }
     
     // Guardar nuevos chunks de ventas diarias
     ventasChunks.forEach((chunk, index) => {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${index}`);
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${index});
       batch.set(chunkRef, {
         data: chunk,
         chunkIndex: index,
@@ -149,13 +149,13 @@ export const guardarDatos = async (datos) => {
     if (ventasHistoricas.length > 0) {
       // Limpiar chunks anteriores de ventas históricas
       for (let i = 0; i < 50; i++) {
-        const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${i}`);
+        const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${i});
         batch.delete(chunkRef);
       }
       
       // Guardar nuevos chunks de ventas históricas
       historicasChunks.forEach((chunk, index) => {
-        const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${index}`);
+        const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${index});
         batch.set(chunkRef, {
           data: chunk,
           chunkIndex: index,
@@ -190,6 +190,7 @@ export const guardarDatos = async (datos) => {
 // Función para obtener datos desde documentos separados
 export const obtenerDatos = async () => {
   try {
+    // Verificar autenticación
     if (!auth.currentUser) {
       console.error('Usuario no autenticado');
       return null;
@@ -202,13 +203,8 @@ export const obtenerDatos = async () => {
     const metadataSnap = await getDoc(metadataRef);
     
     if (!metadataSnap.exists()) {
-      console.log('No hay datos guardados en Firebase');
-      return {
-        stockActual: [],
-        ventasDiarias: [],
-        ventasHistoricas: [],
-        ultimaFechaStock: null
-      };
+      console.log('No hay datos guardados');
+      return null;
     }
 
     const metadata = metadataSnap.data();
@@ -219,15 +215,10 @@ export const obtenerDatos = async () => {
     const stockSnap = await getDoc(stockRef);
     const stockData = stockSnap.exists() ? stockSnap.data() : { data: [], ultimaFechaStock: null };
 
-    console.log('Stock cargado:', stockData.data.length, 'productos');
-
     // 3. Obtener ventas diarias
     let ventasDiarias = [];
-    const chunksVentasDiarias = metadata.chunksVentasDiarias || 0;
-    console.log('Cargando', chunksVentasDiarias, 'chunks de ventas diarias...');
-    
-    for (let i = 0; i < chunksVentasDiarias; i++) {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-diarias-${i}`);
+    for (let i = 0; i < (metadata.chunksVentasDiarias || 0); i++) {
+      const chunkRef = doc(db, 'neumaticos-data', ventas-diarias-${i});
       const chunkSnap = await getDoc(chunkRef);
       if (chunkSnap.exists()) {
         const chunkData = chunkSnap.data();
@@ -235,23 +226,16 @@ export const obtenerDatos = async () => {
       }
     }
 
-    console.log('Ventas diarias cargadas:', ventasDiarias.length, 'registros');
-
     // 4. Obtener ventas históricas
     let ventasHistoricas = [];
-    const chunksVentasHistoricas = metadata.chunksVentasHistoricas || 0;
-    console.log('Cargando', chunksVentasHistoricas, 'chunks de ventas históricas...');
-    
-    for (let i = 0; i < chunksVentasHistoricas; i++) {
-      const chunkRef = doc(db, 'neumaticos-data', `ventas-historicas-${i}`);
+    for (let i = 0; i < (metadata.chunksVentasHistoricas || 0); i++) {
+      const chunkRef = doc(db, 'neumaticos-data', ventas-historicas-${i});
       const chunkSnap = await getDoc(chunkRef);
       if (chunkSnap.exists()) {
         const chunkData = chunkSnap.data();
         ventasHistoricas = ventasHistoricas.concat(chunkData.data || []);
       }
     }
-
-    console.log('Ventas históricas cargadas:', ventasHistoricas.length, 'registros');
 
     const datosCompletos = {
       stockActual: stockData.data || [],
@@ -260,7 +244,7 @@ export const obtenerDatos = async () => {
       ultimaFechaStock: stockData.ultimaFechaStock || null
     };
 
-    console.log('✅ DATOS FINALES CARGADOS:', {
+    console.log('Datos cargados:', {
       stock: datosCompletos.stockActual.length,
       ventasDiarias: datosCompletos.ventasDiarias.length,
       ventasHistoricas: datosCompletos.ventasHistoricas.length
@@ -269,8 +253,9 @@ export const obtenerDatos = async () => {
     return datosCompletos;
 
   } catch (error) {
-    console.error('❌ Error obteniendo datos:', error);
+    console.error('Error obteniendo datos:', error);
     return null;
   }
 };
+
 export { db, auth };
