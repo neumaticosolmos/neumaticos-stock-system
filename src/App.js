@@ -185,17 +185,6 @@ const cargarDatosIniciales = async () => {
     setData(datosGuardados);
   }
 };
-  stockActual: datosGuardados.stock.filter(item => item.fecha === selectedDate),
-          ventasDiarias: datosGuardados.movements.filter(item => item.tipo === 'ventas'),
-          ventasHistoricas: datosGuardados.movements.filter(item => item.tipo === 'ventas-historicas'),
-          ultimaFechaStock: selectedDate
-        };
-        setData(nuevoFormato);
-      } else {
-        setData(datosGuardados);
-      }
-    }
-  };
 
   // ========== NUEVO: AUTO-GUARDAR EN FIREBASE ==========
   // Este useEffect guarda automáticamente cada vez que cambian los datos
